@@ -1,6 +1,7 @@
 # Portfolio Dashboard Generator — SKILL.md
 
-**Role**: Step 11 (HTML) — Generate an interactive HTML dashboard comparing 3 portfolio options, using TailwindCSS CDN + Chart.js.
+**Role**: Step 11 (HTML) — Generate an interactive HTML dashboard comparing 3 portfolio options.
+**Design**: Professional light theme with gradient header, white cards with subtle shadows, Inter font. Styled after stock-analysis-agent dashboard.
 **Triggered by**: Main agent (CLAUDE.md) after Step 10 (Critic Review) passes (or passes with flags).
 **Reads**: `output/portfolio-recommendation.json`, `output/environment-assessment.json`, `output/user-profile.json`, `output/critic-report.json`
 **Writes**: `output/reports/portfolio_{lang}_{date}.html`
@@ -22,57 +23,82 @@ Read all 4 input files:
 Determine output language from `user-profile.json` `output_language` (`"ko"` or `"en"`).
 Determine output date from current date for filename.
 
-### Step 11.2 — Generate HTML Dashboard
+### Step 11.2 — Load Style References
 
-Generate a single self-contained HTML file with:
-- **TailwindCSS** via CDN (`<script src="https://cdn.tailwindcss.com"></script>`)
-- **Chart.js** via CDN (`<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>`)
-- All styles inline or via Tailwind classes — no external CSS files
-- Responsive design (works on desktop and tablet)
+Load in this order:
+1. Read `references/output-templates/dashboard-template.md` — complete HTML skeleton with all sections, placeholder patterns, and structural guidance
+2. Read `references/output-templates/color-system.md` — Tailwind CSS classes, Chart.js color configs, CDN block, CSS styles, and brand color system
 
-Read `references/output-templates/dashboard-template.md` for section structure and layout guidance.
-Read `references/output-templates/color-system.md` for color palette and styling rules.
+**Required CDNs** (all 4 must be in `<head>`):
+- TailwindCSS: `<script src="https://cdn.tailwindcss.com"></script>`
+- Chart.js: `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>`
+- FontAwesome 6.4.2: `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">`
+- Inter font: `<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">`
+- (Korean output) Noto Sans KR: `<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">`
 
-### Step 11.3 — Dashboard Sections (10 sections)
+**Required CSS & Config** (from `color-system.md`):
+- Include the full `<style>` block (card, stat-card, animations, scrollbar, source-tag, severity classes)
+- Include the Tailwind config block (brand color palette)
+
+### Step 11.3 — Generate HTML Dashboard
+
+Generate a single self-contained HTML file following the skeleton in `dashboard-template.md`.
+
+**Theme**: Light (`bg-gray-50 text-gray-800`). NOT dark theme.
 
 The HTML dashboard must include these 10 sections in order:
 
-| # | Section | Content |
-|---|---------|---------|
-| 1 | **Header** | User profile summary (budget, horizon, risk tolerance), analysis date, data confidence grade, Quality Flag if present from critic-report |
-| 2 | **Environment Overview** | Summary cards for macro/political/fundamentals/sentiment dimensions — score, direction, key drivers |
-| 3 | **3-Column Portfolio Comparison** | Side-by-side comparison of aggressive/moderate/conservative options — allocation breakdown |
-| 4 | **Asset Allocation Pie Charts** | Chart.js doughnut/pie chart for each option (one chart per option) |
-| 5 | **Holding Recommendation Tables** | Per-option table: ticker, name, weight %, asset class, rationale |
-| 6 | **Risk/Return Scatter Plot** | Chart.js scatter plot comparing 3 options (x = risk/volatility, y = expected return) |
-| 7 | **Scenario Comparison Table** | Bull/base/bear scenarios for all 3 options — expected return, probability, assumptions |
-| 8 | **Key Risks + Mechanism Chains** | Each risk with "Risk → Portfolio Impact → Response Action" chain, severity, affected options |
-| 9 | **Rebalancing Triggers** | List of conditions that should prompt portfolio rebalancing |
-| 10 | **Disclaimer** | "This is not investment advice. For informational purposes only." (bilingual if Korean output) |
+| # | Section | Key Styling |
+|---|---------|-------------|
+| 1 | **Header** | Blue gradient background (`linear-gradient(135deg, ...)`), white text, portfolio icon, user profile grid, data confidence badge, pulse animation on budget |
+| 2 | **Environment Overview** | `stat-card` pattern with colored left border matching score range, FontAwesome icons for directions, grade badge per dimension |
+| 3 | **Portfolio Comparison** | White `.card` per option, recommended option highlighted with `border-2 border-brand-400`, allocation table with asset-class colors |
+| 4 | **Asset Allocation Pie Charts** | Chart.js pie/doughnut in white cards, 3 side-by-side |
+| 5 | **Holdings Tables** | White `.card` with `bg-gray-50` header row, semantic source tags (colored per source type), ticker in `font-mono text-brand-600` |
+| 6 | **Risk/Return Scatter Plot** | Chart.js scatter in white card |
+| 7 | **Scenario Comparison** | Gradient card (`grad-ani`), glassmorphism inner cards (`bg-white/10 backdrop-blur-sm`), R/R score badges, bull/base/bear per option |
+| 8 | **Key Risks** | White cards with severity left border (`severity-high/medium/low`), Risk → Impact → Response chain with colored step badges |
+| 9 | **Rebalancing Triggers** | White card with icon items (`bg-brand-400` rounded icon + text) |
+| 10 | **Disclaimer** | Dark footer (`bg-gray-900`), muted text |
 
 ### Step 11.4 — Chart.js Implementation
+
+Use `color-system.md` for all Chart.js colors. Charts render on light (`bg-gray-50`) background.
 
 **Pie/Doughnut Charts** (Section 4):
 - One chart per portfolio option (3 total)
 - Segments: US Equity, KR Equity, Bonds, Alternatives, Cash
-- Use color system from `color-system.md`
+- Use `pieColors` from color-system.md
 - Show percentage labels on hover
+- Apply `globalChartOptions` tooltip styling
 
 **Scatter Plot** (Section 6):
 - X-axis: Risk metric (use bear scenario return magnitude as proxy)
 - Y-axis: Base case expected return
 - 3 data points (one per option), labeled with option name
-- Include risk-return efficiency line
+- Use `scatterColors` from color-system.md
 
-### Step 11.5 — Language & Formatting
+### Step 11.5 — Source Tag Styling
+
+Each holding's source tag must use the semantic color system:
+- `[Official]` → blue (`#2563eb`)
+- `[Portal]` → gray (`#4b5563`)
+- `[KR-Portal]` → purple (`#7c3aed`)
+- `[Calc]` → green (`#059669`)
+- `[Est]` → yellow (`#d97706`)
+- `[News]` → orange (`#ea580c`)
+
+Pattern: `<code class="source-tag" style="color: {color}">[{tag}]</code>`
+
+### Step 11.6 — Language & Formatting
 
 - All text content in the language specified by `output_language`
 - Numbers formatted with appropriate locale (KRW with commas, USD with $ prefix)
 - Budget displayed in original currency
 - Percentages to 1 decimal place
-- Color-code risk severity (high = red, medium = orange, low = green)
+- Section headers use FontAwesome icons (`<i class="fa-solid fa-{icon} mr-2 text-brand-400"></i>`)
 
-### Step 11.6 — Write HTML File
+### Step 11.7 — Write HTML File
 
 Write the complete HTML file to:
 ```
@@ -93,12 +119,17 @@ Ensure the `output/reports/` directory exists before writing.
 
 - [ ] HTML file generated at correct path
 - [ ] File size > 0 bytes
+- [ ] **Light theme** applied (`bg-gray-50`, white cards)
+- [ ] **Gradient header** present (blue gradient, not flat dark)
+- [ ] **FontAwesome icons** loaded and visible in section headers
+- [ ] **Inter font** loaded as primary font
+- [ ] **Brand color system** applied via Tailwind config
 - [ ] All 10 sections present in HTML
-- [ ] TailwindCSS CDN loaded
-- [ ] Chart.js CDN loaded
-- [ ] At least 3 Chart.js charts rendered (3 pie charts)
-- [ ] Scatter plot included
-- [ ] Disclaimer present
+- [ ] At least 3 Chart.js charts rendered (3 pie charts + 1 scatter)
+- [ ] Source tags use semantic colors per source type
+- [ ] Scenario section uses gradient card with glassmorphism
+- [ ] Risk cards have severity-colored left borders
+- [ ] Dark footer with disclaimer present
 - [ ] Quality flags from critic-report displayed (if any)
 - [ ] Content is in correct language (ko/en)
 
