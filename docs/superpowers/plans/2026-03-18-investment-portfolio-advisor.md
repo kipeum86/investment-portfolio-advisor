@@ -29,7 +29,7 @@
 - [ ] **Step 1: Initialize git repository**
 
 ```bash
-cd /Users/kpsfamily/코딩\ 프로젝트/investment-portfolio-advisor
+cd investment-portfolio-advisor
 git init
 ```
 
@@ -980,7 +980,7 @@ class TestCheckStaleness:
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-cd /Users/kpsfamily/코딩\ 프로젝트/investment-portfolio-advisor
+cd investment-portfolio-advisor
 source .venv/bin/activate
 pytest tests/scripts/test_staleness_checker.py -v
 ```
@@ -4003,7 +4003,7 @@ Minimal README with:
 - [ ] **Step 2: Run all tests**
 
 ```bash
-cd /Users/kpsfamily/코딩\ 프로젝트/investment-portfolio-advisor
+cd investment-portfolio-advisor
 source .venv/bin/activate
 pytest tests/ -v
 ```
