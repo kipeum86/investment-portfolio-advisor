@@ -59,36 +59,58 @@ The HTML dashboard is a self-contained file — open it in any browser. No serve
 
 The full pipeline runs sequentially — every step has a defined executor, success criteria, and failure fallback.
 
-```
-User Input ("$100K, 3 years, aggressive")
-    │
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│  Step 0   Staleness Check         → REUSE / FULL routing│
-│  Step 1   Query Interpreter       → user-profile.json   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ══ Phase 1: Environment Assessment (Sequential) ══     │
-│                                                         │
-│  Step 2   Macro Collector         → macro-raw.json      │
-│  Step 3   Political Collector     → political-raw.json  │
-│  Step 4   Fundamentals Collector  → fundamentals-raw.json│
-│  Step 5   Sentiment Collector     → sentiment-raw.json  │
-│                                                         │
-│  Step 6   Data Validation  [Script] → validated-data.json│
-│  Step 7   Environment Scoring [LLM] → env-assessment.json│
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ══ Phase 2: Portfolio Construction ══                   │
-│                                                         │
-│  Step 8   Portfolio Analyst [Agent] → 3 portfolio options│
-│  Step 9   Quality Gate     [Script] → 7 deterministic   │
-│                                       checks            │
-│  Step 10  Critic Review    [Agent]  → qualitative review │
-│  Step 11  Output Generation         → HTML + DOCX       │
-│  Step 12  Persistence               → archive + latest  │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    INPUT["&nbsp;<b>User Input</b><br/><code>$100K · 3 years · aggressive</code>&nbsp;"]
+    INPUT --> S0
+
+    subgraph PREP ["&nbsp; Preparation &nbsp;"]
+        S0["<b>Step 0</b> · Staleness Check<br/><i>Script</i> → staleness-routing.json"]
+        S1["<b>Step 1</b> · Query Interpreter<br/><i>LLM</i> → user-profile.json"]
+        S0 --> S1
+    end
+
+    S1 --> S2
+
+    subgraph ENV ["&nbsp; Phase 1 — Environment Assessment &nbsp;"]
+        direction TB
+        S2["<b>Step 2</b> · Macro Collector<br/><i>LLM web</i> → macro-raw.json"]
+        S3["<b>Step 3</b> · Political Collector<br/><i>LLM web</i> → political-raw.json"]
+        S4["<b>Step 4</b> · Fundamentals Collector<br/><i>LLM web</i> → fundamentals-raw.json"]
+        S5["<b>Step 5</b> · Sentiment Collector<br/><i>LLM web</i> → sentiment-raw.json"]
+        S6["<b>Step 6</b> · Data Validation<br/><i>Script</i> → validated-data.json"]
+        S7["<b>Step 7</b> · Environment Scoring<br/><i>Script + LLM</i> → env-assessment.json"]
+        S2 --> S3 --> S4 --> S5 --> S6 --> S7
+    end
+
+    S7 --> S8
+
+    subgraph PORT ["&nbsp; Phase 2 — Portfolio Construction &nbsp;"]
+        direction TB
+        S8["<b>Step 8</b> · Portfolio Analyst<br/><i>Agent</i> → 3 portfolio options"]
+        S9["<b>Step 9</b> · Quality Gate<br/><i>Script</i> → 7 deterministic checks"]
+        S10["<b>Step 10</b> · Critic Review<br/><i>Agent</i> → qualitative review"]
+        S8 --> S9 --> S10
+    end
+
+    S10 --> S11
+
+    subgraph OUT ["&nbsp; Output &nbsp;"]
+        S11["<b>Step 11</b> · Output Generation<br/><i>LLM + Script</i>"]
+        S12["<b>Step 12</b> · Persistence<br/><i>Script</i> → archive"]
+        S11 --> S12
+    end
+
+    S11 --> HTML["📊 <b>HTML Dashboard</b>"]
+    S11 --> DOCX["📝 <b>DOCX Memo</b>"]
+
+    style INPUT fill:#1e3f80,stroke:#3367d6,color:#fff
+    style HTML fill:#059669,stroke:#047857,color:#fff
+    style DOCX fill:#059669,stroke:#047857,color:#fff
+    style PREP fill:#f0f9ff,stroke:#bae6fd,color:#0c4a6e
+    style ENV fill:#fef3c7,stroke:#fcd34d,color:#78350f
+    style PORT fill:#ede9fe,stroke:#c4b5fd,color:#4c1d95
+    style OUT fill:#ecfdf5,stroke:#6ee7b7,color:#064e3b
 ```
 
 ### LLM vs Script — Clear Boundaries
