@@ -20,6 +20,10 @@ venv/
 *.pem
 *.key
 
+# Local tool config
+.mcp.json
+.claude/settings.json
+
 # OS
 .DS_Store
 Thumbs.db
