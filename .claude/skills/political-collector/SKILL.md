@@ -17,46 +17,100 @@ Before collecting, read `output/staleness-routing.json`:
 - If `dimensions.political.routing` = `"REUSE"` → **SKIP** this entire skill. Use existing `output/data/political/latest.json` as-is.
 - If `dimensions.political.routing` = `"FULL"` → proceed with full collection below.
 
-### Step 3.1 — Collection Targets
+### Step 3.1 — Discovery Scan (Phase A)
 
-Collect political and geopolitical developments across these categories:
+**Purpose**: Discover what is currently dominating the political and geopolitical landscape, without assuming what topics are important. The world changes — queries must adapt.
 
-| Category | Targets |
-|----------|---------|
-| **US** | Trade policy/tariffs, Tech regulation, Fiscal policy, Financial regulation |
-| **KR** | Political situation, Corporate regulation, Value-Up program |
-| **Geopolitical** | US-China relations, Regional conflicts, Semiconductor supply chain |
+Execute 4 broad, timeless discovery queries to scan current headlines:
 
-**Minimum requirement**: At least 1 development item each for US and Geopolitical categories.
+| # | Query | Purpose |
+|---|-------|---------|
+| D1 | `major geopolitical events risks financial markets this week {YYYY}` | Global headline risks |
+| D2 | `US political policy changes affecting stock market {YYYY}` | US policy/regulatory developments |
+| D3 | `South Korea political economic risks latest {YYYY}` | KR political/economic risks |
+| D4 | `global conflicts trade tensions sanctions impact markets {YYYY}` | Conflicts, trade wars, sanctions |
 
-### Step 3.2 — Web Search Execution
+Replace `{YYYY}` with the current year.
 
 **Search Tool Priority**:
 1. `mcp__tavily__search` (preferred — real-time, structured)
 2. `mcp__brave__search` (fallback)
 3. `WebSearch` tool (Claude built-in, last resort)
-4. `WebFetch` for direct URL access
 
-**Web Search Query Templates**:
+**For each query**:
+- Collect top 3–5 results
+- Extract **headlines + 1-sentence summaries only** (breadth over depth)
+- Do NOT perform deep analysis yet — that is Phase B's job
 
-| # | Query | Target Data |
-|---|-------|-------------|
-| 1 | `US trade policy tariffs latest developments 2026` | Trade policy |
-| 2 | `US technology regulation big tech policy 2026` | Tech regulation |
-| 3 | `US fiscal policy government spending budget 2026` | Fiscal policy |
-| 4 | `US financial regulation banking policy SEC 2026` | Financial regulation |
-| 5 | `South Korea political situation government policy 2026` | KR politics |
-| 6 | `South Korea corporate governance Value-Up program 2026` | KR corporate regulation |
-| 7 | `US China relations trade technology tensions 2026` | US-China |
-| 8 | `geopolitical risks conflicts Middle East Asia 2026` | Regional conflicts |
-| 9 | `semiconductor supply chain geopolitics CHIPS act 2026` | Semiconductor supply chain |
-| 10 | `global trade war tariff impact stock market 2026` | Trade environment |
+**Target**: Complete discovery in under 30 seconds.
 
-For each search:
-- Collect top 3-5 results
-- Extract: headline, summary, impact assessment, affected sectors, source URL
+**On failure**: If 3+ discovery queries fail, skip to **Fallback Queries** in Step 3.3.
 
-### Step 3.3 — Source Tagging Rules
+### Step 3.2 — Topic Triage (LLM)
+
+Using the discovery scan results, perform a structured triage:
+
+**1. Deduplicate**: Merge overlapping topics that appeared across multiple discovery queries.
+
+**2. Classify**: Assign each topic to a category:
+
+| Category | Scope (examples, non-exhaustive) |
+|----------|----------------------------------|
+| **US** | Trade policy, tech regulation, fiscal policy, financial regulation, executive orders, etc. |
+| **KR** | Political situation, corporate regulation, Value-Up program, elections, etc. |
+| **Geopolitical** | Great power rivalries, military conflicts, trade wars, supply chain disruptions, sanctions, etc. |
+
+**3. Score market relevance** (1–5 scale):
+
+| Score | Criteria |
+|-------|----------|
+| 5 | Immediate market impact — active policy announcement, military escalation, sanctions enforcement |
+| 4 | Clear market transmission — elections, major regulation overhaul, trade deal breakdown |
+| 3 | Developing situation with potential but uncertain market impact |
+| 2 | Indirect or delayed market impact |
+| 1 | No clear market transmission mechanism |
+
+**4. Select topics for deep collection**: All topics scoring **3 or higher**. If fewer than 3 topics score 3+, lower threshold to 2 to ensure adequate coverage.
+
+**5. Generate targeted search queries**: For each selected topic, generate **1–2 specific search queries** that will find detailed reporting on that topic. Queries must include market/sector impact keywords (e.g., "impact stocks", "market reaction", "sector exposure").
+
+**Constraints**:
+- Maximum **8 deep-collection queries** total (timeout prevention)
+- Must include at least **1 query targeting US category** and **1 query targeting Geopolitical category**
+
+**Example triage output** (internal, not persisted):
+```
+Topics discovered:
+1. [Geopolitical] US-Iran naval confrontation in Strait of Hormuz (5/5)
+   → "US Iran military confrontation oil prices energy sector impact 2026"
+   → "Middle East conflict escalation risk defense stocks 2026"
+2. [US] New semiconductor export controls to China (5/5)
+   → "US semiconductor export controls China impact technology stocks 2026"
+3. [KR] Korean snap election uncertainty (4/5)
+   → "South Korea snap election KOSPI economic policy impact 2026"
+4. [Geopolitical] EU carbon border tax implementation (3/5)
+   → "EU carbon border tax CBAM impact global manufacturing trade 2026"
+```
+
+### Step 3.3 — Deep Collection (Phase B)
+
+Execute the targeted queries generated by the triage step.
+
+For each query:
+- Collect top 3–5 results
+- Extract: headline, detailed summary, impact assessment, affected sectors, source URL
+- Apply source tagging (Step 3.4) and impact assessment (Step 3.5)
+
+**Fallback Queries**: If discovery scan failed (Step 3.1) or triage produced no viable topics, use these 4 baseline queries instead:
+
+| # | Fallback Query | Category |
+|---|---------------|----------|
+| F1 | `US government policy economic impact latest {YYYY}` | US |
+| F2 | `US trade policy tariffs latest developments {YYYY}` | US |
+| F3 | `geopolitical risks conflicts impact financial markets {YYYY}` | Geopolitical |
+| F4 | `global trade tensions sanctions latest {YYYY}` | Geopolitical |
+
+### Step 3.4 — Source Tagging Rules
 
 Apply source tags based on provenance:
 
@@ -69,7 +123,7 @@ Apply source tags based on provenance:
 
 **Priority**: For political developments, `[News]` sources from major wire services and financial press are primary. Use `[Official]` when citing actual policy documents or government statements.
 
-### Step 3.4 — Impact Assessment
+### Step 3.5 — Impact Assessment
 
 For each development, assess market impact:
 - `"positive"` — likely positive for equity markets
@@ -78,30 +132,38 @@ For each development, assess market impact:
 
 Also identify `affected_sectors` — which market sectors are most impacted by this development (e.g., `["technology", "manufacturing"]` for tariff changes).
 
-### Step 3.5 — Write political-raw.json
+### Step 3.6 — Write political-raw.json
 
 **Output Schema**: `political-raw.json`
 ```json
 {
   "collection_timestamp": "2026-03-17T10:10:00Z",
+  "collection_method": "dynamic_discovery",
+  "discovery_metadata": {
+    "discovery_queries_executed": 4,
+    "topics_discovered": 8,
+    "topics_selected": 6,
+    "deep_queries_executed": 7,
+    "fallback_used": false
+  },
   "developments": [
     {
-      "id": "us_tariff_policy",
-      "category": "us_trade",
-      "headline": "New tariffs announced on semiconductor imports",
-      "summary": "The administration announced 25% tariffs on semiconductor imports from select countries, effective Q2 2026...",
+      "id": "us_iran_naval_confrontation",
+      "category": "geopolitical",
+      "headline": "US-Iran naval standoff escalates in Strait of Hormuz",
+      "summary": "US Navy and Iranian Revolutionary Guard vessels engaged in a standoff near the Strait of Hormuz, raising concerns about oil supply disruption...",
       "impact_assessment": "negative",
-      "affected_sectors": ["technology", "manufacturing"],
+      "affected_sectors": ["energy", "defense", "transportation"],
       "source_tag": "[News]",
       "source_url": "https://www.reuters.com/...",
       "retrieved_at": "2026-03-17T10:10:00Z"
     },
     {
-      "id": "kr_value_up",
-      "category": "kr_corporate",
-      "headline": "Korea Value-Up program phase 2 announced",
-      "summary": "FSC announced expanded Value-Up program incentives for listed companies...",
-      "impact_assessment": "positive",
+      "id": "kr_snap_election",
+      "category": "kr_political",
+      "headline": "Korea snap election uncertainty weighs on KOSPI",
+      "summary": "Political uncertainty surrounding potential snap elections has led to increased volatility in Korean markets...",
+      "impact_assessment": "negative",
       "affected_sectors": ["financials", "conglomerates"],
       "source_tag": "[KR-Portal]",
       "source_url": "https://...",
@@ -112,12 +174,16 @@ Also identify `affected_sectors` — which market sectors are most impacted by t
 }
 ```
 
-The `collection_gaps` array lists any target categories that could not be assessed.
+The `collection_gaps` array lists any categories that could not be assessed.
+
+The `discovery_metadata` field records the discovery process for debugging and transparency. Downstream consumers (`data_validator.py`) ignore this field — they only read the `developments` array.
 
 ---
 
 ## Success Criteria
 
+- [ ] Discovery scan executed (4 queries) or fallback triggered
+- [ ] Topic triage completed with at least 3 topics selected (or all available if fewer)
 - [ ] At least 1 development item for US category
 - [ ] At least 1 development item for Geopolitical category
 - [ ] All developments have valid `source_tag` and `source_url`
@@ -129,7 +195,9 @@ The `collection_gaps` array lists any target categories that could not be assess
 
 ## Failure Handling
 
-- **Individual search failure**: Retry once with an alternate query (rephrase or use different news source). If still failing, record in `collection_gaps` with reason and apply Grade D treatment.
+- **Discovery scan failure (3+ queries fail)**: Skip discovery, proceed directly to Deep Collection using the 4 fallback queries.
+- **Triage produces no topics**: Use the 4 fallback queries for Deep Collection.
+- **Individual deep-collection query failure**: Retry once with rephrased query. If still failing, record in `collection_gaps` with reason and apply Grade D treatment.
 - **3+ consecutive search failures**: Assume network issue. Proceed with whatever data has been collected so far. Do NOT stop.
 - **Grade D treatment**: Add entry to `collection_gaps`: `{"category": "...", "reason": "Search failed after retry", "grade": "D"}`.
 - **Core rule**: Always write `political-raw.json` even if partial. Partial data > no data.
