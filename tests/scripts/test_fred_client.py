@@ -183,3 +183,53 @@ def test_fetch_indicator_fundamentals_has_market_field(mock_get):
     result = fetch_indicator("us_ig_spread", "test_api_key")
     assert result["market"] == "us"
     assert "category" not in result
+
+
+# --- fetch_all tests ---
+
+import json
+import subprocess
+
+
+@patch("fred_client.requests.get")
+def test_fetch_all_success(mock_get):
+    from fred_client import fetch_all
+    mock_get.return_value = _mock_fred_response("2.3", "2025-10-01")
+    result = fetch_all(["us_gdp_growth", "us_cpi"], "test_key")
+    assert result["source"] == "FRED_API"
+    assert len(result["indicators"]) == 2
+    assert len(result["errors"]) == 0
+
+
+@patch("fred_client.requests.get")
+def test_fetch_all_partial_failure(mock_get):
+    from fred_client import fetch_all
+    mock_get.side_effect = [
+        _mock_fred_response("2.3", "2025-10-01"),
+        _mock_fred_error(500),
+    ]
+    result = fetch_all(["us_gdp_growth", "us_cpi"], "test_key")
+    assert len(result["indicators"]) == 1
+    assert len(result["errors"]) == 1
+    assert result["errors"][0]["id"] == "us_cpi"
+
+
+@patch("fred_client.requests.get")
+def test_fetch_all_invalid_indicator_skipped(mock_get):
+    from fred_client import fetch_all
+    result = fetch_all(["not_real_indicator"], "test_key")
+    assert len(result["indicators"]) == 0
+    assert len(result["errors"]) == 1
+
+
+def test_cli_missing_api_key():
+    """CLI should exit 1 when no API key is available."""
+    env = os.environ.copy()
+    env.pop("FRED_API_KEY", None)
+    proc = subprocess.run(
+        [sys.executable, ".claude/scripts/fred_client.py", "--indicators", "us_gdp_growth"],
+        capture_output=True, text=True, env=env,
+        cwd=str(Path(__file__).resolve().parents[2]),
+    )
+    assert proc.returncode == 1
+    assert "API key" in proc.stderr
