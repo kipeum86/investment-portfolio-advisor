@@ -67,3 +67,119 @@ def test_series_map_entries_have_required_fields():
     for ind_id, config in SERIES_MAP.items():
         for field in required:
             assert field in config, f"Missing {field} in SERIES_MAP[{ind_id}]"
+
+
+# --- fetch_indicator tests (mocked HTTP) ---
+
+from unittest.mock import patch, MagicMock
+
+
+def _mock_fred_response(value: str, date: str):
+    """Create a mock FRED API JSON response."""
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {
+        "observations": [
+            {"date": date, "value": value}
+        ]
+    }
+    return resp
+
+
+def _mock_fred_error(status_code: int):
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.raise_for_status.side_effect = Exception(f"HTTP {status_code}")
+    return resp
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_success(mock_get):
+    from fred_client import fetch_indicator
+    mock_get.return_value = _mock_fred_response("2.3", "2025-10-01")
+    result = fetch_indicator("us_gdp_growth", "test_api_key")
+    assert result["id"] == "us_gdp_growth"
+    assert result["value"] == 2.3
+    assert result["period"] == "Q4 2025"
+    assert result["source_tag"] == "[Official]"
+    assert result["category"] == "us"
+    assert result["name"] == "US GDP Growth Rate (QoQ annualized)"
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_with_transform(mock_get):
+    from fred_client import fetch_indicator
+    mock_get.return_value = _mock_fred_response("0.42", "2026-03-24")
+    result = fetch_indicator("us_yield_spread", "test_api_key")
+    assert result["value"] == 42.0
+    assert result["unit"] == "bps"
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_with_api_units(mock_get):
+    from fred_client import fetch_indicator
+    mock_get.return_value = _mock_fred_response("3.1", "2026-02-01")
+    result = fetch_indicator("us_cpi", "test_api_key")
+    call_args = mock_get.call_args
+    assert call_args[1]["params"]["units"] == "pc1"
+    assert result["value"] == 3.1
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_empty_observations(mock_get):
+    from fred_client import fetch_indicator
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"observations": []}
+    mock_get.return_value = resp
+    result = fetch_indicator("us_gdp_growth", "test_api_key")
+    assert result is None
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_dot_value_skipped(mock_get):
+    """FRED returns '.' for missing values — should skip."""
+    from fred_client import fetch_indicator
+    mock_get.return_value = _mock_fred_response(".", "2026-03-24")
+    result = fetch_indicator("us_10y_yield", "test_api_key")
+    assert result is None
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_http_error(mock_get):
+    from fred_client import fetch_indicator
+    mock_get.return_value = _mock_fred_error(500)
+    result = fetch_indicator("us_gdp_growth", "test_api_key")
+    assert result is None
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_connection_error(mock_get):
+    """ConnectionError should return None without crashing."""
+    from fred_client import fetch_indicator
+    mock_get.side_effect = ConnectionError("Connection refused")
+    result = fetch_indicator("us_gdp_growth", "test_api_key")
+    assert result is None
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_429_retries_once(mock_get):
+    """429 should retry once with 1s backoff."""
+    from fred_client import fetch_indicator
+    mock_get.side_effect = [
+        _mock_fred_error(429),
+        _mock_fred_response("4.5", "2026-03-24"),
+    ]
+    result = fetch_indicator("us_fed_rate", "test_api_key")
+    assert result is not None
+    assert result["value"] == 4.5
+    assert mock_get.call_count == 2
+
+
+@patch("fred_client.requests.get")
+def test_fetch_indicator_fundamentals_has_market_field(mock_get):
+    from fred_client import fetch_indicator
+    mock_get.return_value = _mock_fred_response("1.30", "2026-03-21")
+    result = fetch_indicator("us_ig_spread", "test_api_key")
+    assert result["market"] == "us"
+    assert "category" not in result
