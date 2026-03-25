@@ -21,27 +21,32 @@ Integrate the FRED (Federal Reserve Economic Data) API as the primary data sourc
 | API call method | Python script (hybrid) | Matches project pattern (`data_validator.py`, `staleness_checker.py`). Reliable error handling. |
 | Fallback strategy | FRED first → web search fallback | Maximizes collection success rate. Aligns with existing retry/fallback pattern. |
 | Scope | macro + fundamentals (credit spreads) | FRED covers US macro indicators + ICE BofA credit spreads. KR/Global stay on web search. |
-| Script location | `scripts/fred_client.py` (project root) | Shared by both collectors. Avoids duplicate FRED logic. |
+| Script location | `.claude/scripts/fred_client.py` (shared scripts dir) | New shared directory for cross-skill utilities. Avoids duplicate FRED logic. |
+| Source tag reclassification | FRED API data tagged `[Official]` | FRED is operated by the Federal Reserve Bank of St. Louis and serves official government data via API. Web-scraped FRED URLs remain `[Portal]` per existing SKILL.md. |
 | HTTP library | `requests` (not `fredapi`) | Lighter dependency, sufficient for our use case (fetch latest observation per series). |
 
 ---
 
-## 1. `scripts/fred_client.py`
+## 1. `.claude/scripts/fred_client.py`
 
 ### Interface
 
 ```bash
 # Macro indicators
-python scripts/fred_client.py \
+python .claude/scripts/fred_client.py \
   --indicators us_gdp_growth,us_cpi,us_pce,us_fed_rate,us_unemployment,us_10y_yield,us_2y_yield,us_yield_spread \
   --output output/data/macro/fred-data.json \
   --write
 
 # Fundamentals indicators
-python scripts/fred_client.py \
+python .claude/scripts/fred_client.py \
   --indicators us_ig_spread,us_hy_spread \
   --output output/data/fundamentals/fred-data.json \
   --write
+
+# With explicit API key
+python .claude/scripts/fred_client.py \
+  --indicators us_gdp_growth --api-key <key> --output output.json --write
 ```
 
 - Without `--write`: prints JSON to stdout
@@ -53,8 +58,8 @@ python scripts/fred_client.py \
 
 ```
 Priority:
-1. Environment variable FRED_API_KEY
-2. --api-key CLI argument
+1. --api-key CLI argument (explicit override)
+2. Environment variable FRED_API_KEY
 ```
 
 No `.env` file. User adds `export FRED_API_KEY=<key>` to shell profile.
@@ -66,64 +71,84 @@ SERIES_MAP = {
     # Macro indicators
     "us_gdp_growth": {
         "series_id": "A191RL1Q225SBEA",
+        "name": "US GDP Growth Rate (QoQ annualized)",
+        "category": "us",
         "unit": "%",
-        "transform": None,           # Value is already QoQ annualized %
-        "fred_units": None,           # Use default units
+        "transform": None,              # Value is already QoQ annualized %
+        "api_units": None,               # Use default FRED units
     },
     "us_cpi": {
         "series_id": "CPIAUCSL",
+        "name": "US CPI (YoY)",
+        "category": "us",
         "unit": "%",
         "transform": None,
-        "fred_units": "pc1",          # Percent change from year ago
+        "api_units": "pc1",              # Percent change from year ago
     },
     "us_pce": {
         "series_id": "PCEPI",
+        "name": "US PCE Price Index (YoY)",
+        "category": "us",
         "unit": "%",
         "transform": None,
-        "fred_units": "pc1",
+        "api_units": "pc1",
     },
     "us_fed_rate": {
         "series_id": "DFF",
+        "name": "Effective Federal Funds Rate",
+        "category": "us",
         "unit": "%",
         "transform": None,
-        "fred_units": None,
+        "api_units": None,
     },
     "us_unemployment": {
         "series_id": "UNRATE",
+        "name": "US Unemployment Rate",
+        "category": "us",
         "unit": "%",
         "transform": None,
-        "fred_units": None,
+        "api_units": None,
     },
     "us_10y_yield": {
         "series_id": "DGS10",
+        "name": "10-Year Treasury Yield",
+        "category": "us",
         "unit": "%",
         "transform": None,
-        "fred_units": None,
+        "api_units": None,
     },
     "us_2y_yield": {
         "series_id": "DGS2",
+        "name": "2-Year Treasury Yield",
+        "category": "us",
         "unit": "%",
         "transform": None,
-        "fred_units": None,
+        "api_units": None,
     },
     "us_yield_spread": {
         "series_id": "T10Y2Y",
+        "name": "2Y-10Y Treasury Spread",
+        "category": "us",
         "unit": "bps",
-        "transform": "multiply_100",  # FRED returns %, convert to bps
-        "fred_units": None,
+        "transform": "multiply_100",    # FRED returns percentage points, convert to bps
+        "api_units": None,
     },
     # Fundamentals indicators
     "us_ig_spread": {
         "series_id": "BAMLC0A0CM",
+        "name": "ICE BofA US Corporate IG OAS",
+        "market": "us",
         "unit": "bps",
-        "transform": "multiply_100",  # FRED returns %, convert to bps
-        "fred_units": None,
+        "transform": "multiply_100",    # FRED returns percentage points, convert to bps
+        "api_units": None,
     },
     "us_hy_spread": {
         "series_id": "BAMLH0A0HYM2",
+        "name": "ICE BofA US High Yield OAS",
+        "market": "us",
         "unit": "bps",
         "transform": "multiply_100",
-        "fred_units": None,
+        "api_units": None,
     },
 }
 ```
@@ -139,6 +164,8 @@ Same structure as `macro-raw.json` indicators:
   "indicators": [
     {
       "id": "us_gdp_growth",
+      "category": "us",
+      "name": "US GDP Growth Rate (QoQ annualized)",
       "value": 2.3,
       "unit": "%",
       "period": "Q4 2025",
@@ -158,6 +185,8 @@ Same structure as `macro-raw.json` indicators:
 }
 ```
 
+Note: Macro indicators include `category` field (`"us"`). Fundamentals indicators include `market` field (`"us"`) instead, matching the respective raw JSON schemas.
+
 ### Error Handling
 
 | Scenario | Behavior |
@@ -166,7 +195,7 @@ Same structure as `macro-raw.json` indicators:
 | Individual series failure | Record in `errors`, continue with remaining series |
 | Network timeout | 10s per request, failure → `errors` |
 | Empty response (no observations) | Record in `errors` with "No observations available" |
-| Rate limiting (429) | No retry (caller handles fallback to web search) |
+| Rate limiting (429) | 1 retry with 1s backoff, then record in `errors` |
 
 ### Period Detection
 
@@ -186,7 +215,7 @@ The script extracts the observation date from FRED response and formats it:
 **Step 2.2a — FRED API Collection (US indicators)**
 
 ```
-Run: python scripts/fred_client.py \
+Run: python .claude/scripts/fred_client.py \
        --indicators us_gdp_growth,us_cpi,us_pce,us_fed_rate,us_unemployment,us_10y_yield,us_2y_yield,us_yield_spread \
        --output output/data/macro/fred-data.json --write
 
@@ -214,7 +243,7 @@ Existing web search logic unchanged. Additional queries only for indicators that
 **Step 4.2a — FRED API Collection (credit spreads)**
 
 ```
-Run: python scripts/fred_client.py \
+Run: python .claude/scripts/fred_client.py \
        --indicators us_ig_spread,us_hy_spread \
        --output output/data/fundamentals/fred-data.json --write
 
@@ -233,14 +262,14 @@ Existing web search logic unchanged.
 
 | File | Action | Description |
 |------|--------|-------------|
-| `scripts/fred_client.py` | CREATE | FRED API client, shared by both collectors |
-| `.claude/skills/macro-collector/SKILL.md` | MODIFY | Add Step 2.2a (FRED), update search priority |
+| `.claude/scripts/fred_client.py` | CREATE | FRED API client, shared by both collectors |
+| `.claude/skills/macro-collector/SKILL.md` | MODIFY | Add Step 2.2a (FRED), update search priority, move FRED from `[Portal]` to `[Official]` in source tag table |
 | `.claude/skills/fundamentals-collector/SKILL.md` | MODIFY | Add Step 4.2a (FRED), update search priority |
+| `CLAUDE.md` Section 10 | MODIFY | Add `.claude/scripts/` to file path tree |
 | `requirements.txt` | MODIFY | Add `requests>=2.31.0` |
 
 ### Files NOT modified
 
-- `CLAUDE.md` — pipeline flow unchanged
 - `data_validator.py` — `[Official]` tag → Grade A already works
 - `environment_scorer.py` — input format identical
 - `environment-researcher/AGENT.md` — calls skills, no change needed
@@ -260,3 +289,23 @@ Existing web search logic unchanged.
 | Global indicators | `[Portal]`/`[News]` Grade C | No change |
 
 Expected overall data grade improvement: C/B → B/A for typical runs.
+
+---
+
+## 5. Notes
+
+### Source Tag Reclassification
+
+FRED is currently listed under `[Portal]` in `macro-collector/SKILL.md` (line 73). With this integration:
+- **FRED API** data (via `fred_client.py`) → tagged `[Official]`. Rationale: direct API access to Federal Reserve Bank data is equivalent to official government statistics.
+- **FRED website** data (via web search hitting `fred.stlouisfed.org`) → remains `[Portal]`. Web-scraped data goes through a portal regardless of the underlying authority.
+
+This distinction is intentional: the collection method determines the tag, not just the data origin.
+
+### Arithmetic Consistency with Mixed Sources
+
+When FRED provides `us_yield_spread` (T10Y2Y) but individual yields (`us_10y_yield`, `us_2y_yield`) come from web search (or vice versa), the `data_validator.py` arithmetic check may flag a timing mismatch. The existing 20 bps tolerance is sufficient to absorb typical intraday differences. No code change needed.
+
+### Intermediate File Lifecycle
+
+`fred-data.json` files (`output/data/macro/fred-data.json`, `output/data/fundamentals/fred-data.json`) are intermediate artifacts. They are retained for debugging but are not checked by `staleness_checker.py` (which only checks `latest.json`). Already covered by `output/` in `.gitignore`.
