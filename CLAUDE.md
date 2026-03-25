@@ -547,6 +547,8 @@ Project Root
     |   +-- data-manager/
     |       +-- SKILL.md
     |       +-- scripts/recommendation_archiver.py
+    +-- scripts/
+    |   +-- fred_client.py                 <- Shared FRED API client (macro + fundamentals)
     +-- agents/
         +-- environment-researcher/
         |   +-- AGENT.md
