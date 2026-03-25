@@ -74,9 +74,9 @@ flowchart TD
 
     subgraph ENV ["&nbsp; Phase 1 — Environment Assessment &nbsp;"]
         direction TB
-        S2["<b>Step 2</b> · Macro Collector<br/><i>LLM web</i> → macro-raw.json"]
+        S2["<b>Step 2</b> · Macro Collector<br/><i>FRED API + LLM web</i> → macro-raw.json"]
         S3["<b>Step 3</b> · Political Collector<br/><i>LLM web</i> → political-raw.json"]
-        S4["<b>Step 4</b> · Fundamentals Collector<br/><i>LLM web</i> → fundamentals-raw.json"]
+        S4["<b>Step 4</b> · Fundamentals Collector<br/><i>FRED API + LLM web</i> → fundamentals-raw.json"]
         S5["<b>Step 5</b> · Sentiment Collector<br/><i>LLM web</i> → sentiment-raw.json"]
         S6["<b>Step 6</b> · Data Validation<br/><i>Script</i> → validated-data.json"]
         S7["<b>Step 7</b> · Environment Scoring<br/><i>Script + LLM</i> → env-assessment.json"]
@@ -121,7 +121,10 @@ Every step has an explicitly designated executor. "Same input → same output?" 
 |------|----------|-----------|
 | 0. Staleness Check | Script | Timestamp comparison is deterministic |
 | 1. Query Interpreter | LLM | Natural language parsing |
-| 2–5. Data Collectors | LLM | Web research requires judgment |
+| 2. Macro Collector | FRED API + LLM | US indicators via FRED API (Grade A), KR/Global via web search |
+| 3. Political Collector | LLM | Web research requires judgment |
+| 4. Fundamentals Collector | FRED API + LLM | Credit spreads via FRED API, valuations/sectors via web |
+| 5. Sentiment Collector | LLM | Web research requires judgment |
 | 6. Data Validation | Script | Arithmetic consistency, grade assignment |
 | 7. Environment Scoring | Script + LLM | Historical range positioning (script) + regime classification (LLM) |
 | 8. Portfolio Construction | Script + LLM | Allocation math (script) + holding selection (LLM) |
@@ -148,9 +151,9 @@ Every step has an explicitly designated executor. "Same input → same output?" 
 |---|-------|------|------|
 | 1 | staleness-checker | 0 | Script |
 | 2 | query-interpreter | 1 | LLM |
-| 3 | macro-collector | 2 | LLM (web) |
+| 3 | macro-collector | 2 | FRED API + LLM (web) |
 | 4 | political-collector | 3 | LLM (web) |
-| 5 | fundamentals-collector | 4 | LLM (web) |
+| 5 | fundamentals-collector | 4 | FRED API + LLM (web) |
 | 6 | sentiment-collector | 5 | LLM (web) |
 | 7 | data-validator | 6 | Script |
 | 8 | environment-scorer | 7 | Script + LLM |
@@ -179,7 +182,7 @@ Every data point carries a grade and source tag. You always know what to trust.
 
 | Grade | Criteria | Display |
 |-------|----------|---------|
-| **A** | Official government statistics + arithmetic consistency | `[Official]` |
+| **A** | Official government statistics (incl. FRED API) + arithmetic consistency | `[Official]` |
 | **B** | 2+ independent sources within 5% difference | `[Portal]` `[KR-Portal]` |
 | **C** | Single source, arithmetic consistency confirmed | Source noted |
 | **D** | Unverifiable → **shown as "—"** | Never fabricated |
@@ -235,6 +238,10 @@ cd investment-portfolio-advisor
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# (Optional) Set FRED API key for enhanced US macro data (Grade A)
+# Get a free key at https://fred.stlouisfed.org/docs/api/api_key.html
+export FRED_API_KEY=your_api_key_here
 ```
 
 ### Run
@@ -362,6 +369,8 @@ investment-portfolio-advisor/
 │
 └── .claude/
     ├── settings.json
+    ├── scripts/
+    │   └── fred_client.py                ← Shared FRED API client (macro + fundamentals)
     ├── skills/                            ← 12 skills (SKILL.md + scripts/)
     │   ├── staleness-checker/
     │   ├── query-interpreter/
@@ -390,10 +399,11 @@ source .venv/bin/activate
 pytest tests/ -v
 ```
 
-8 Python scripts, each with dedicated unit tests:
+9 Python scripts, each with dedicated unit tests:
 
 | Script | Coverage |
 |--------|----------|
+| `fred_client.py` | FRED API fetch, series mapping, period formatting, transforms |
 | `allocation_calculator.py` | Regime → allocation ranges, risk/horizon adjustments |
 | `return_estimator.py` | Per-scenario expected return calculation |
 | `data_validator.py` | 3-stage validation + grade assignment |

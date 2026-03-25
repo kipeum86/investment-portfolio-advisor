@@ -74,9 +74,9 @@ flowchart TD
 
     subgraph ENV ["&nbsp; Phase 1 — 투자 환경 평가 &nbsp;"]
         direction TB
-        S2["<b>Step 2</b> · 거시경제 수집기<br/><i>LLM 웹</i> → macro-raw.json"]
+        S2["<b>Step 2</b> · 거시경제 수집기<br/><i>FRED API + LLM 웹</i> → macro-raw.json"]
         S3["<b>Step 3</b> · 정치/지정학 수집기<br/><i>LLM 웹</i> → political-raw.json"]
-        S4["<b>Step 4</b> · 펀더멘탈 수집기<br/><i>LLM 웹</i> → fundamentals-raw.json"]
+        S4["<b>Step 4</b> · 펀더멘탈 수집기<br/><i>FRED API + LLM 웹</i> → fundamentals-raw.json"]
         S5["<b>Step 5</b> · 시장심리 수집기<br/><i>LLM 웹</i> → sentiment-raw.json"]
         S6["<b>Step 6</b> · 데이터 검증<br/><i>스크립트</i> → validated-data.json"]
         S7["<b>Step 7</b> · 환경 스코어링<br/><i>스크립트 + LLM</i> → env-assessment.json"]
@@ -121,7 +121,10 @@ flowchart TD
 |------|--------|------|
 | 0. 신선도 체크 | 스크립트 | 타임스탬프 비교는 결정론적 |
 | 1. 쿼리 해석 | LLM | 자연어 파싱 필요 |
-| 2–5. 데이터 수집 | LLM | 웹 리서치는 판단 필요 |
+| 2. 거시경제 수집 | FRED API + LLM | US 지표는 FRED API(Grade A), KR/Global은 웹 검색 |
+| 3. 정치/지정학 수집 | LLM | 웹 리서치는 판단 필요 |
+| 4. 펀더멘탈 수집 | FRED API + LLM | 크레딧 스프레드는 FRED API, 밸류에이션/섹터는 웹 |
+| 5. 시장심리 수집 | LLM | 웹 리서치는 판단 필요 |
 | 6. 데이터 검증 | 스크립트 | 산술 일관성, 등급 부여 |
 | 7. 환경 스코어링 | 스크립트 + LLM | 역사적 범위 위치(스크립트) + 레짐 분류(LLM) |
 | 8. 포트폴리오 구성 | 스크립트 + LLM | 배분 계산(스크립트) + 종목 선택(LLM) |
@@ -148,9 +151,9 @@ flowchart TD
 |---|------|------|------|
 | 1 | staleness-checker | 0 | 스크립트 |
 | 2 | query-interpreter | 1 | LLM |
-| 3 | macro-collector | 2 | LLM (웹) |
+| 3 | macro-collector | 2 | FRED API + LLM (웹) |
 | 4 | political-collector | 3 | LLM (웹) |
-| 5 | fundamentals-collector | 4 | LLM (웹) |
+| 5 | fundamentals-collector | 4 | FRED API + LLM (웹) |
 | 6 | sentiment-collector | 5 | LLM (웹) |
 | 7 | data-validator | 6 | 스크립트 |
 | 8 | environment-scorer | 7 | 스크립트 + LLM |
@@ -179,7 +182,7 @@ flowchart TD
 
 | 등급 | 기준 | 표시 |
 |------|------|------|
-| **A** | 정부 공식 통계 + 산술 일관성 | `[Official]` |
+| **A** | 정부 공식 통계 (FRED API 포함) + 산술 일관성 | `[Official]` |
 | **B** | 2개+ 독립 소스, 5% 이내 차이 | `[Portal]` `[KR-Portal]` |
 | **C** | 단일 소스, 산술 일관성 확인 | 출처 표기 |
 | **D** | 검증 불가 → **"—"로 표시** | 절대 날조 안 함 |
@@ -235,6 +238,10 @@ cd investment-portfolio-advisor
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# (선택) FRED API 키 설정 — US 거시경제 데이터 Grade A 수집 강화
+# 무료 키 발급: https://fred.stlouisfed.org/docs/api/api_key.html
+export FRED_API_KEY=your_api_key_here
 ```
 
 ### 실행
@@ -362,6 +369,8 @@ investment-portfolio-advisor/
 │
 └── .claude/
     ├── settings.json
+    ├── scripts/
+    │   └── fred_client.py                ← 공유 FRED API 클라이언트 (거시경제 + 펀더멘탈)
     ├── skills/                            ← 12개 스킬 (SKILL.md + scripts/)
     │   ├── staleness-checker/
     │   ├── query-interpreter/
@@ -390,10 +399,11 @@ source .venv/bin/activate
 pytest tests/ -v
 ```
 
-8개 Python 스크립트 각각 전용 단위 테스트 포함:
+9개 Python 스크립트 각각 전용 단위 테스트 포함:
 
 | 스크립트 | 테스트 범위 |
 |----------|------------|
+| `fred_client.py` | FRED API 호출, 시리즈 매핑, 기간 포맷팅, 단위 변환 |
 | `allocation_calculator.py` | 레짐 → 배분 범위, 리스크/기간 조정 |
 | `return_estimator.py` | 시나리오별 기대수익률 계산 |
 | `data_validator.py` | 3단계 검증 + 등급 부여 |
