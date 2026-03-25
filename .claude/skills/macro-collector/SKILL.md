@@ -31,32 +31,51 @@ Collect the following macroeconomic indicators via web search:
 
 If `user-profile.json` `market_preference` = `"us"`, KR indicators are still collected but at lower priority. If `"kr"`, US indicators are still collected but at lower priority.
 
-### Step 2.2 — Web Search Execution
+### Step 2.2a — FRED API Collection (US indicators)
+
+Run the FRED client script to collect US macroeconomic indicators:
+
+```bash
+python .claude/scripts/fred_client.py \
+  --indicators us_gdp_growth,us_cpi,us_pce,us_fed_rate,us_unemployment,us_10y_yield,us_2y_yield,us_yield_spread \
+  --output output/data/macro/fred-data.json --write
+```
+
+Read the output `fred-data.json`:
+- **Exit code 0**: Read `fred-data.json`. Successfully fetched indicators go directly into `macro-raw.json` (they already have correct `source_tag`, `category`, `name`, etc.). Any indicator IDs listed in `errors[]` must be collected via web search in Step 2.2b.
+- **Exit code 1**: Script failed entirely (bad API key, network down). Skip FRED, collect ALL US indicators via web search in Step 2.2b.
+
+### Step 2.2b — Web Search Collection (KR + Global + FRED failures)
+
+Collect the following via web search:
+- **Always**: KR indicators (kr_gdp_growth, kr_cpi, kr_base_rate, kr_usd_fx) + Global indicators (ECB rate, BOJ rate, trade environment) + FOMC outlook (qualitative)
+- **Only if FRED failed**: Any US indicators listed in `fred-data.json` `errors[]` or all US indicators if Step 2.2a exited with code 1
 
 **Search Tool Priority**:
-1. `mcp__tavily__search` (preferred — real-time, structured)
-2. `mcp__brave__search` (fallback)
-3. `WebSearch` tool (Claude built-in, last resort)
-4. `WebFetch` for direct URL access
+1. `fred_client.py` (US indicators — via Step 2.2a, highest priority)
+2. `mcp__tavily__search` (KR/Global + FRED fallback — real-time, structured)
+3. `mcp__brave__search` (fallback)
+4. `WebSearch` tool (Claude built-in, last resort)
+5. `WebFetch` for direct URL access
 
-**Web Search Query Templates**:
+**Web Search Query Templates** (for KR, Global, FOMC outlook, and FRED fallback):
 
-| # | Query | Target Data |
-|---|-------|-------------|
-| 1 | `US GDP growth rate latest quarterly 2026` | US GDP |
-| 2 | `US CPI inflation rate latest month 2026` | US CPI |
-| 3 | `US PCE price index latest 2026` | US PCE |
-| 4 | `Federal funds rate current FOMC decision 2026` | Fed funds rate |
-| 5 | `US unemployment rate latest BLS 2026` | Unemployment |
-| 6 | `US Treasury yield curve 2 year 10 year spread current` | Yield curve |
-| 7 | `FOMC meeting outlook rate decision 2026` | FOMC outlook |
-| 8 | `South Korea GDP growth rate BOK latest 2026` | KR GDP |
-| 9 | `South Korea CPI inflation rate latest 2026` | KR CPI |
-| 10 | `Bank of Korea base rate latest decision 2026` | BOK rate |
-| 11 | `KRW USD exchange rate current` | Exchange rate |
-| 12 | `ECB interest rate latest decision 2026` | ECB rate |
-| 13 | `Bank of Japan interest rate latest 2026` | BOJ rate |
-| 14 | `global trade tariffs economic outlook 2026` | Trade environment |
+| # | Query | Target Data | When |
+|---|-------|-------------|------|
+| 1 | `US GDP growth rate latest quarterly 2026` | US GDP | FRED fallback only |
+| 2 | `US CPI inflation rate latest month 2026` | US CPI | FRED fallback only |
+| 3 | `US PCE price index latest 2026` | US PCE | FRED fallback only |
+| 4 | `Federal funds rate current FOMC decision 2026` | Fed funds rate | FRED fallback only |
+| 5 | `US unemployment rate latest BLS 2026` | Unemployment | FRED fallback only |
+| 6 | `US Treasury yield curve 2 year 10 year spread current` | Yield curve | FRED fallback only |
+| 7 | `FOMC meeting outlook rate decision 2026` | FOMC outlook | Always (qualitative) |
+| 8 | `South Korea GDP growth rate BOK latest 2026` | KR GDP | Always |
+| 9 | `South Korea CPI inflation rate latest 2026` | KR CPI | Always |
+| 10 | `Bank of Korea base rate latest decision 2026` | BOK rate | Always |
+| 11 | `KRW USD exchange rate current` | Exchange rate | Always |
+| 12 | `ECB interest rate latest decision 2026` | ECB rate | Always |
+| 13 | `Bank of Japan interest rate latest 2026` | BOJ rate | Always |
+| 14 | `global trade tariffs economic outlook 2026` | Trade environment | Always |
 
 For each search:
 - Use the exact query template (adjust year if needed)
@@ -69,8 +88,8 @@ Apply source tags based on provenance:
 
 | Tag | Source Examples |
 |-----|---------------|
-| `[Official]` | BLS, BEA, Federal Reserve, BOK, KOSIS — government statistical agencies |
-| `[Portal]` | Trading Economics, Yahoo Finance, FRED, MarketWatch |
+| `[Official]` | BLS, BEA, Federal Reserve, BOK, KOSIS, FRED API (via `fred_client.py`) — government statistical agencies |
+| `[Portal]` | Trading Economics, Yahoo Finance, MarketWatch |
 | `[KR-Portal]` | Naver Finance, FnGuide, KRX |
 | `[News]` | Reuters, Bloomberg, CNBC, WSJ — for qualitative outlook |
 | `[Calc]` | Self-calculated (e.g., yield curve spread from individual yields) |
