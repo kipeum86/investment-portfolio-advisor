@@ -31,27 +31,46 @@ Collect the following market-level fundamental indicators via web search:
 
 **Minimum requirement**: S&P 500 P/E + KOSPI PER must be collected at minimum.
 
-### Step 4.2 — Web Search Execution
+### Step 4.2a — FRED API Collection (credit spreads)
+
+Run the FRED client script to collect US credit spread indicators:
+
+```bash
+python .claude/scripts/fred_client.py \
+  --indicators us_ig_spread,us_hy_spread \
+  --output output/data/fundamentals/fred-data.json --write
+```
+
+Read the output `fred-data.json`:
+- **Exit code 0**: Read `fred-data.json`. Successfully fetched indicators go directly into `fundamentals-raw.json` `market_metrics[]` (they already have correct `source_tag`, `market`, `name`, etc.). Any indicator IDs listed in `errors[]` must be collected via web search in Step 4.2b.
+- **Exit code 1**: Script failed entirely. Skip FRED, collect credit spreads via web search in Step 4.2b.
+
+### Step 4.2b — Web Search Collection (valuations + sectors + FRED failures)
+
+Collect via web search:
+- **Always**: S&P 500 P/E, Shiller CAPE, KOSPI PER/PBR, sector performance, earnings estimates
+- **Only if FRED failed**: Credit spreads (us_ig_spread, us_hy_spread) if listed in `fred-data.json` `errors[]` or if Step 4.2a exited with code 1
 
 **Search Tool Priority**:
-1. `mcp__tavily__search` (preferred — real-time, structured)
-2. `mcp__brave__search` (fallback)
-3. `WebSearch` tool (Claude built-in, last resort)
-4. `WebFetch` for direct URL access
+1. `fred_client.py` (credit spreads — via Step 4.2a, highest priority)
+2. `mcp__tavily__search` (preferred — real-time, structured)
+3. `mcp__brave__search` (fallback)
+4. `WebSearch` tool (Claude built-in, last resort)
+5. `WebFetch` for direct URL access
 
 **Web Search Query Templates**:
 
-| # | Query | Target Data |
-|---|-------|-------------|
-| 1 | `S&P 500 P/E ratio trailing current 2026` | S&P 500 P/E |
-| 2 | `Shiller CAPE ratio S&P 500 current` | Shiller CAPE |
-| 3 | `KOSPI PER PBR current valuation 2026` | KOSPI valuations |
-| 4 | `S&P 500 sector ETF performance YTD 2026` | Sector performance |
-| 5 | `XLK XLF XLE XLV XLI sector ETF returns YTD 2026` | Individual sector ETFs |
-| 6 | `S&P 500 earnings growth estimate forward 2026` | Earnings estimates |
-| 7 | `US corporate credit spread investment grade high yield 2026` | Credit spreads |
-| 8 | `sector rotation signals US stock market 2026` | Rotation signals |
-| 9 | `KOSPI sector performance top sectors 2026` | KR sector data |
+| # | Query | Target Data | When |
+|---|-------|-------------|------|
+| 1 | `S&P 500 P/E ratio trailing current 2026` | S&P 500 P/E | Always |
+| 2 | `Shiller CAPE ratio S&P 500 current` | Shiller CAPE | Always |
+| 3 | `KOSPI PER PBR current valuation 2026` | KOSPI valuations | Always |
+| 4 | `S&P 500 sector ETF performance YTD 2026` | Sector performance | Always |
+| 5 | `XLK XLF XLE XLV XLI sector ETF returns YTD 2026` | Individual sector ETFs | Always |
+| 6 | `S&P 500 earnings growth estimate forward 2026` | Earnings estimates | Always |
+| 7 | `US corporate credit spread investment grade high yield 2026` | Credit spreads | FRED fallback only |
+| 8 | `sector rotation signals US stock market 2026` | Rotation signals | Always |
+| 9 | `KOSPI sector performance top sectors 2026` | KR sector data | Always |
 
 For each search:
 - Collect top 3-5 results
