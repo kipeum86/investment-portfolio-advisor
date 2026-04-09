@@ -452,6 +452,12 @@ The data confidence system (Grade D → "—") reduces but does not eliminate th
 
 ---
 
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).
+
+---
+
 <p align="center">
   <sub>Built with <a href="https://claude.ai/claude-code">Claude Code</a> · Powered by Claude</sub>
 </p>
