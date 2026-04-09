@@ -452,6 +452,12 @@ pytest tests/ -v
 
 ---
 
+## 라이선스
+
+[Apache License 2.0](LICENSE) 하에 배포됩니다.
+
+---
+
 <p align="center">
   <sub><a href="https://claude.ai/claude-code">Claude Code</a>로 제작 · Powered by Claude</sub>
 </p>
